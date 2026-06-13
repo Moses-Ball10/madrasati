@@ -7,6 +7,18 @@ import 'teacher_state.dart';
 class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
   final TeacherRepository teacherRepository;
 
+  // ── Cache timestamps ──
+  // Stores the last fetch time for each data type so we can avoid
+  // redundant Firestore reads when switching between tabs.
+  DateTime? _dashboardStatsFetchedAt;
+  DateTime? _contentStatsFetchedAt;
+  DateTime? _resultsStatsFetchedAt;
+  DateTime? _studentsFetchedAt;
+  DateTime? _overviewFetchedAt;
+
+  // How long cached data stays fresh before a background re-fetch
+  static const _cacheDuration = Duration(minutes: 30);
+
   TeacherBloc({required this.teacherRepository}) : super(TeacherInitial()) {
     on<LoadTeacherDashboardStats>(_onLoadDashboardStats);
     on<LoadDashboardContentStats>(_onLoadDashboardContentStats);
@@ -31,12 +43,24 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     on<UpdateQuestion>(_onUpdateQuestion);
     on<DeleteQuestion>(_onDeleteQuestion);
     on<ImportLessonsCSV>(_onImportLessonsCSV);
+    on<RefreshDashboardStats>(_onRefreshDashboardStats);
+  }
+
+  bool _isCacheValid(DateTime? fetchedAt) {
+    if (fetchedAt == null) return false;
+    return DateTime.now().difference(fetchedAt) < _cacheDuration;
   }
 
   Future<void> _onLoadDashboardStats(LoadTeacherDashboardStats event, Emitter<TeacherState> emit) async {
+    // If we already have dashboard data and cache is valid, skip the fetch
+    if (state is TeacherDashboardLoaded && _isCacheValid(_dashboardStatsFetchedAt)) {
+      return;
+    }
+
     emit(TeacherLoading());
     try {
       final stats = await teacherRepository.getDashboardStats();
+      _dashboardStatsFetchedAt = DateTime.now();
       emit(TeacherDashboardLoaded(
         totalCategories: stats['categories'] ?? 0,
         totalLevels: stats['levels'] ?? 0,
@@ -48,11 +72,27 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     }
   }
 
+  /// Force-refresh: bypasses cache (used by pull-to-refresh / manual refresh button)
+  Future<void> _onRefreshDashboardStats(RefreshDashboardStats event, Emitter<TeacherState> emit) async {
+    _dashboardStatsFetchedAt = null;
+    _contentStatsFetchedAt = null;
+    _resultsStatsFetchedAt = null;
+    _studentsFetchedAt = null;
+    _overviewFetchedAt = null;
+    add(LoadTeacherDashboardStats());
+  }
+
   Future<void> _onLoadDashboardContentStats(LoadDashboardContentStats event, Emitter<TeacherState> emit) async {
     if (state is TeacherDashboardLoaded) {
+      final currentState = state as TeacherDashboardLoaded;
+      // Return cached data if still valid
+      if (currentState.contentStats != null && _isCacheValid(_contentStatsFetchedAt)) {
+        return;
+      }
       try {
         final contentStats = await teacherRepository.getLevelsContentStats();
-        emit((state as TeacherDashboardLoaded).copyWith(contentStats: contentStats));
+        _contentStatsFetchedAt = DateTime.now();
+        emit(currentState.copyWith(contentStats: contentStats));
       } catch (e) {
         emit(TeacherError('فشل في تحميل محتوى المستويات: $e'));
       }
@@ -61,11 +101,32 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
 
   Future<void> _onLoadDashboardOverview(LoadDashboardOverview event, Emitter<TeacherState> emit) async {
     if (state is TeacherDashboardLoaded) {
+      final currentState = state as TeacherDashboardLoaded;
+      // If all overview data is cached and valid, skip
+      if (currentState.contentStats != null &&
+          currentState.resultsStats != null &&
+          currentState.students != null &&
+          _isCacheValid(_overviewFetchedAt)) {
+        return;
+      }
       try {
-        final contentStats = await teacherRepository.getLevelsContentStats();
-        final resultsStats = await teacherRepository.getStudentResultsStats();
-        final students = await teacherRepository.getAllStudents();
-        emit((state as TeacherDashboardLoaded).copyWith(
+        // Only fetch what's missing or stale
+        final contentStats = (currentState.contentStats != null && _isCacheValid(_contentStatsFetchedAt))
+            ? currentState.contentStats!
+            : await teacherRepository.getLevelsContentStats();
+        final resultsStats = (currentState.resultsStats != null && _isCacheValid(_resultsStatsFetchedAt))
+            ? currentState.resultsStats!
+            : await teacherRepository.getStudentResultsStats();
+        final students = (currentState.students != null && _isCacheValid(_studentsFetchedAt))
+            ? currentState.students!
+            : await teacherRepository.getAllStudents();
+
+        _overviewFetchedAt = DateTime.now();
+        _contentStatsFetchedAt ??= DateTime.now();
+        _resultsStatsFetchedAt ??= DateTime.now();
+        _studentsFetchedAt ??= DateTime.now();
+
+        emit(currentState.copyWith(
           contentStats: contentStats,
           resultsStats: resultsStats,
           students: students,
@@ -78,9 +139,14 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
 
   Future<void> _onLoadDashboardResultsStats(LoadDashboardResultsStats event, Emitter<TeacherState> emit) async {
     if (state is TeacherDashboardLoaded) {
+      final currentState = state as TeacherDashboardLoaded;
+      if (currentState.resultsStats != null && _isCacheValid(_resultsStatsFetchedAt)) {
+        return;
+      }
       try {
         final resultsStats = await teacherRepository.getStudentResultsStats();
-        emit((state as TeacherDashboardLoaded).copyWith(resultsStats: resultsStats));
+        _resultsStatsFetchedAt = DateTime.now();
+        emit(currentState.copyWith(resultsStats: resultsStats));
       } catch (e) {
         emit(TeacherError('فشل في تحميل نتائج الطلاب: $e'));
       }
@@ -89,9 +155,14 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
 
   Future<void> _onLoadDashboardStudents(LoadDashboardStudents event, Emitter<TeacherState> emit) async {
     if (state is TeacherDashboardLoaded) {
+      final currentState = state as TeacherDashboardLoaded;
+      if (currentState.students != null && _isCacheValid(_studentsFetchedAt)) {
+        return;
+      }
       try {
         final students = await teacherRepository.getAllStudents();
-        emit((state as TeacherDashboardLoaded).copyWith(students: students));
+        _studentsFetchedAt = DateTime.now();
+        emit(currentState.copyWith(students: students));
       } catch (e) {
         emit(TeacherError('فشل في تحميل الطلاب: $e'));
       }
@@ -122,6 +193,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.addCategory(event.category);
+      _invalidateDashboardCache();
       add(LoadCategories());
     } catch (e) {
       emit(TeacherError('فشل في إضافة الفئة: $e'));
@@ -132,6 +204,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.updateCategory(event.category);
+      _invalidateDashboardCache();
       add(LoadCategories());
     } catch (e) {
       emit(TeacherError('فشل في تحديث الفئة: $e'));
@@ -142,6 +215,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.deleteCategory(event.categoryId);
+      _invalidateDashboardCache();
       add(LoadCategories());
     } catch (e) {
       emit(TeacherError('فشل في حذف الفئة: $e'));
@@ -162,6 +236,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.addLevel(event.level);
+      _invalidateDashboardCache();
       add(LoadLevels(event.level.categoryId));
     } catch (e) {
       emit(TeacherError('فشل في إضافة المستوى: $e'));
@@ -172,6 +247,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.updateLevel(event.level);
+      _invalidateDashboardCache();
       add(LoadLevels(event.level.categoryId));
     } catch (e) {
       emit(TeacherError('فشل في تحديث المستوى: $e'));
@@ -182,6 +258,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.deleteLevel(event.categoryId, event.levelId);
+      _invalidateDashboardCache();
       add(LoadLevels(event.categoryId));
     } catch (e) {
       emit(TeacherError('فشل في حذف المستوى: $e'));
@@ -202,6 +279,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.addLesson(event.categoryId, event.lesson);
+      _invalidateDashboardCache();
       add(LoadLessons(event.categoryId, event.lesson.levelId));
     } catch (e) {
       emit(TeacherError('فشل في إضافة الدرس: $e'));
@@ -212,6 +290,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.updateLesson(event.categoryId, event.lesson);
+      _invalidateDashboardCache();
       add(LoadLessons(event.categoryId, event.lesson.levelId));
     } catch (e) {
       emit(TeacherError('فشل في تحديث الدرس: $e'));
@@ -222,6 +301,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.deleteLesson(event.categoryId, event.levelId, event.lessonId);
+      _invalidateDashboardCache();
       add(LoadLessons(event.categoryId, event.levelId));
     } catch (e) {
       emit(TeacherError('فشل في حذف الدرس: $e'));
@@ -242,6 +322,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.addQuestion(event.categoryId, event.question);
+      _invalidateDashboardCache();
       add(LoadQuestions(event.categoryId, event.question.levelId));
     } catch (e) {
       emit(TeacherError('فشل في إضافة السؤال: $e'));
@@ -252,6 +333,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.updateQuestion(event.categoryId, event.question);
+      _invalidateDashboardCache();
       add(LoadQuestions(event.categoryId, event.question.levelId));
     } catch (e) {
       emit(TeacherError('فشل في تحديث السؤال: $e'));
@@ -262,6 +344,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherLoading());
     try {
       await teacherRepository.deleteQuestion(event.categoryId, event.levelId, event.questionId);
+      _invalidateDashboardCache();
       add(LoadQuestions(event.categoryId, event.levelId));
     } catch (e) {
       emit(TeacherError('فشل في حذف السؤال: $e'));
@@ -272,10 +355,21 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
     emit(TeacherImporting());
     try {
       await teacherRepository.importLessonsCSV(event.categoryId, event.csvString);
+      _invalidateDashboardCache();
       emit(TeacherImportSuccess());
       add(LoadLevels(event.categoryId));
     } catch (e) {
       emit(TeacherError('فشل في استيراد CSV: $e'));
     }
+  }
+
+  /// Invalidates all dashboard caches so the next visit re-fetches fresh data.
+  /// Called after any content mutation (add/update/delete).
+  void _invalidateDashboardCache() {
+    _dashboardStatsFetchedAt = null;
+    _contentStatsFetchedAt = null;
+    _resultsStatsFetchedAt = null;
+    _studentsFetchedAt = null;
+    _overviewFetchedAt = null;
   }
 }

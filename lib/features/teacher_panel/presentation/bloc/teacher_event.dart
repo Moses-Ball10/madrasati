@@ -17,6 +17,9 @@ class LoadDashboardStudents extends TeacherEvent {}
 
 class LoadDashboardActivityLogs extends TeacherEvent {}
 
+/// Force-refresh all dashboard data, bypassing cache
+class RefreshDashboardStats extends TeacherEvent {}
+
 class LoadCategories extends TeacherEvent {}
 
 class AddCategory extends TeacherEvent {

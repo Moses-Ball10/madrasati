@@ -1,1 +1,47 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"madrasti-app-1272a","appId":"1:1081636513876:android:e5f259c6c7c1f2608225c1","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"madrasti-app-1272a","appId":"1:1081636513876:ios:30b33d474e883eaa8225c1","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"madrasti-app-1272a","configurations":{"android":"1:1081636513876:android:e5f259c6c7c1f2608225c1","ios":"1:1081636513876:ios:30b33d474e883eaa8225c1","macos":"1:1081636513876:ios:a3a96a3ab4e600bb8225c1","web":"1:1081636513876:web:8320e2bac5f99c958225c1","windows":"1:1081636513876:web:e2b873fae6045acd8225c1"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "madrasti-app-1272a",
+          "appId": "1:1081636513876:android:e5f259c6c7c1f2608225c1",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "madrasti-app-1272a",
+          "appId": "1:1081636513876:ios:30b33d474e883eaa8225c1",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "madrasti-app-1272a",
+          "configurations": {
+            "android": "1:1081636513876:android:e5f259c6c7c1f2608225c1",
+            "ios": "1:1081636513876:ios:30b33d474e883eaa8225c1",
+            "macos": "1:1081636513876:ios:a3a96a3ab4e600bb8225c1",
+            "web": "1:1081636513876:web:8320e2bac5f99c958225c1",
+            "windows": "1:1081636513876:web:e2b873fae6045acd8225c1"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

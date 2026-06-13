@@ -106,48 +106,60 @@ class LevelMapScreen extends StatelessWidget {
       Alignment.center,
     ];
     
-    // We want the most recent/locked levels at the top visually?
-    // Duolingo usually has start at bottom, current at top.
-    // Since we are using a ListView, let's just make it normal (start at top) or reversed.
-    // Let's do normal (order 1 at top) for simplicity in scrolling.
-    
-    const double itemHeight = 140.0; // Fixed height per item for the painter to work reliably
+    const double itemHeight = 140.0;
+    const double topPadding = 40.0;
+    const double bottomPadding = 40.0;
+    final double totalHeight = topPadding + (levelsData.length * itemHeight) + bottomPadding;
 
-    return CustomPaint(
-      painter: WindingPathPainter(
-        levelCount: levelsData.length,
-        alignments: positions,
-        itemHeight: itemHeight,
-      ),
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        itemCount: levelsData.length,
-        itemBuilder: (context, index) {
-          final data = levelsData[index];
-          final level = data['level'];
-          final ProgressModel progress = data['progress'];
-          final align = positions[index % positions.length];
-
-          return SizedBox(
-            height: itemHeight,
-            child: Align(
-              alignment: align,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: LevelBubbleWidget(
-                  status: progress.status,
-                  stars: progress.stars,
-                  xpReward: level.xpReward,
-                  title: level.title,
-                  onTap: () => _handleLevelTap(context, categoryId, level.id, progress),
+    return SingleChildScrollView(
+      child: SizedBox(
+        height: totalHeight,
+        child: Stack(
+          children: [
+            // The winding path — painted at full content height, scrolls with content
+            Positioned.fill(
+              child: CustomPaint(
+                painter: WindingPathPainter(
+                  levelCount: levelsData.length,
+                  alignments: positions,
+                  itemHeight: itemHeight,
+                  topPadding: topPadding,
                 ),
               ),
             ),
-          );
-        },
+            // Level bubbles positioned on top of the path
+            ...List.generate(levelsData.length, (index) {
+              final data = levelsData[index];
+              final level = data['level'];
+              final ProgressModel progress = data['progress'];
+              final align = positions[index % positions.length];
+
+              return Positioned(
+                top: topPadding + (index * itemHeight),
+                left: 0,
+                right: 0,
+                height: itemHeight,
+                child: Align(
+                  alignment: align,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: LevelBubbleWidget(
+                      status: progress.status,
+                      stars: progress.stars,
+                      xpReward: level.xpReward,
+                      title: level.title,
+                      onTap: () => _handleLevelTap(context, categoryId, level.id, progress),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
+
 
   void _handleLevelTap(BuildContext context, String catId, String levId, ProgressModel progress) {
     if (progress.status == LevelStatus.locked) {

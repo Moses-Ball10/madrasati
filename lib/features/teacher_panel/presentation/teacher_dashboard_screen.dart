@@ -58,6 +58,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   if (constraints.maxWidth < 800) {
                     return Column(
                       children: [
+                        _buildRefreshRow(state),
+                        const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(child: _buildStatCard('الطلاب النشطين', students.toString(), Icons.people, Colors.blue)),
@@ -76,15 +78,21 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       ],
                     );
                   }
-                  return Row(
+                  return Column(
                     children: [
-                      Expanded(child: _buildStatCard('الطلاب النشطين', students.toString(), Icons.people, Colors.blue)),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildStatCard('الأسئلة', questions.toString(), Icons.question_answer, AppColors.xpGold)),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildStatCard('المستويات', levels.toString(), Icons.layers, AppColors.success)),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildStatCard('إجمالي الفئات', categories.toString(), Icons.category, AppColors.primaryBrown)),
+                      _buildRefreshRow(state),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: _buildStatCard('الطلاب النشطين', students.toString(), Icons.people, Colors.blue)),
+                          const SizedBox(width: 16),
+                          Expanded(child: _buildStatCard('الأسئلة', questions.toString(), Icons.question_answer, AppColors.xpGold)),
+                          const SizedBox(width: 16),
+                          Expanded(child: _buildStatCard('المستويات', levels.toString(), Icons.layers, AppColors.success)),
+                          const SizedBox(width: 16),
+                          Expanded(child: _buildStatCard('إجمالي الفئات', categories.toString(), Icons.category, AppColors.primaryBrown)),
+                        ],
+                      ),
                     ],
                   );
                 },
@@ -119,6 +127,32 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildRefreshRow(TeacherState state) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (state is TeacherDashboardLoaded)
+          Text(
+            'البيانات محفوظة مؤقتاً',
+            style: AppTextStyles.bodySmall.copyWith(color: Colors.grey),
+          ),
+        const SizedBox(width: 8),
+        TextButton.icon(
+          onPressed: state is TeacherLoading
+              ? null
+              : () {
+                  context.read<TeacherBloc>().add(RefreshDashboardStats());
+                },
+          icon: const Icon(Icons.refresh, size: 18),
+          label: const Text('تحديث'),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primaryBrown,
+          ),
+        ),
+      ],
     );
   }
 

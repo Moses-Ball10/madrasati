@@ -5,11 +5,13 @@ class WindingPathPainter extends CustomPainter {
   final int levelCount;
   final List<Alignment> alignments;
   final double itemHeight;
+  final double topPadding;
 
   WindingPathPainter({
     required this.levelCount,
     required this.alignments,
     required this.itemHeight,
+    this.topPadding = 40,
   });
 
   @override
@@ -24,19 +26,17 @@ class WindingPathPainter extends CustomPainter {
 
     final path = Path();
 
-    // Need to connect the centers of each item
+    // Connect the centers of each level bubble
     for (int i = 0; i < levelCount - 1; i++) {
       final currentAlign = alignments[i % alignments.length];
       final nextAlign = alignments[(i + 1) % alignments.length];
 
-      // Calculate center coordinates
-      // Since it's RTL, Alignment.centerRight is visually on the right
-      // itemHeight is the approximate height of each item in the list
+      // Calculate center coordinates within the total content area
       double startX = size.width / 2 + (currentAlign.x * size.width / 3);
-      double startY = (i * itemHeight) + (itemHeight / 2) - 20; // -20 offset for bubble vs text
+      double startY = topPadding + (i * itemHeight) + (itemHeight / 2) - 20;
 
       double endX = size.width / 2 + (nextAlign.x * size.width / 3);
-      double endY = ((i + 1) * itemHeight) + (itemHeight / 2) - 20;
+      double endY = topPadding + ((i + 1) * itemHeight) + (itemHeight / 2) - 20;
 
       if (i == 0) {
         path.moveTo(startX, startY);
@@ -47,7 +47,7 @@ class WindingPathPainter extends CustomPainter {
       path.cubicTo(
         startX, controlPointY, 
         endX, controlPointY, 
-        endX, endY
+        endX, endY,
       );
     }
 
@@ -55,7 +55,9 @@ class WindingPathPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return false; // Static path
+  bool shouldRepaint(covariant WindingPathPainter oldDelegate) {
+    return oldDelegate.levelCount != levelCount ||
+        oldDelegate.itemHeight != itemHeight ||
+        oldDelegate.topPadding != topPadding;
   }
 }
